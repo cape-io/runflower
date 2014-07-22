@@ -1,0 +1,31 @@
+{
+  "name": "runflower",
+  "version": "0.1.0",
+  "description": "",
+  "main": "runflower.js",
+  "scripts": {
+    "test": "mocha"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/cape-io/runflower.git"
+  },
+  "keywords": [
+    "rethinkdb",
+    "json",
+    "filter",
+    "data"
+  ],
+  "author": "Kai Curry <kai@cape.io> (http://www.cape.io/)",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/cape-io/runflower/issues"
+  },
+  "homepage": "https://github.com/cape-io/runflower",
+  "dependencies": {
+  },
+  "devDependencies": {
+    "mocha": "^1.20.1",
+    "chai": "^1.9.1"
+  }
+}
