@@ -1,16 +1,14 @@
 (function() {
-  var build_q, compare_lr, create_field, empty_fields, eqJoin, ext, filename, group_by, group_by_obj, index_by, left_right, map_add, must_not, options, outerJoin, pluck, r, rename, should, stringify, _;
+  var build_q, compare_lr, create_field, empty_fields, eqJoin, ext, filename, group_by, group_by_obj, index_by, left_right, map_add, must_not, options, outerJoin, pluck, rename, should, stringify, _;
 
   _ = require('lodash');
-
-  r = require('rethinkdb');
 
   options = {
     db: 'make_id',
     table: 'api'
   };
 
-  build_q = function(rq, field) {
+  build_q = function(r, field, rq) {
     if (!field && !_.isFunction(rq)) {
       field = rq;
     }
@@ -97,13 +95,7 @@
       delete field.pluck;
     }
     if (field.sort) {
-      if (field.sort.index) {
-        rq = rq.orderBy({
-          index: field.sort.index
-        });
-      } else {
-        rq = rq.orderBy(field.sort);
-      }
+      rq = rq.orderBy(field.sort);
     }
     if (_.isObject(field.rename)) {
       rq = rename(rq, field.rename);

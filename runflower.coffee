@@ -1,11 +1,10 @@
 _ = require 'lodash'
-r = require 'rethinkdb'
 
 options =
   db: 'make_id'
   table: 'api'
 
-build_q = (rq, field) ->
+build_q = (r, field, rq) ->
   if not field and not _.isFunction rq
     field = rq
   # field needs to be an array or object to query the db.
@@ -92,10 +91,7 @@ build_q = (rq, field) ->
 
   # Sort order
   if field.sort
-    if field.sort.index
-      rq = rq.orderBy({index: field.sort.index})
-    else
-      rq = rq.orderBy(field.sort)
+    rq = rq.orderBy(field.sort)
 
   if _.isObject field.rename
     rq = rename rq, field.rename
