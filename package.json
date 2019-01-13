@@ -13,6 +13,10 @@
     "url": "git://github.com/cape-io/runflower.git"
   },
   "keywords": [
+    "code",
+    "json",
+    "eval",
+    "template",
     "lodash",
     "filter",
     "data"

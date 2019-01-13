@@ -1,8 +1,8 @@
 # Runflower
 
-Take an array of an array strings and turn it into a _.flow() of functions.
+Write code as arrays of strings.
 
-It's a way to get around environments that do not allow `eval` or `new Function`. It also allows shipping code as json or yaml or whatever you prefer.
+It's a way to get around environments that do not allow `eval` or `new Function`. Should be familiar with `_.flow` and functional programming.
 
 ## Available function libraries
 
@@ -13,15 +13,20 @@ It's a way to get around environments that do not allow `eval` or `new Function`
 ## Usage
 
 ```javascript
+import _ from 'lodash/fp'
 import { evaluate } from 'runflower'
 
-const createString = evaluate([
+const createString1 =  _.flow(
+  _.over([_.constant('/cape-io/'), _.get('url.subdomain'), _.get('pathname')]),
+  _.join(''),
+)
+
+const createString2 = evaluate([
   ['over', [['constant', '/cape-io/'], ['get', 'url.subdomain'], ['get', 'pathname']]],
   ['join', ''],
 ])
-// flow(over([_.constant('/cape-io/'), _.get('url.subdomain'), _.get('pathname')]))
 
 const info = { url: { subdomain: 'dev' }, pathname: '/index.html' }
 
-const result = createString(info) // => '/cape-io/dev/index.html'
+console.log(createString1(info) === createString2(info)) // => true
 ```
