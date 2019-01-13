@@ -1,438 +1,285 @@
-(function() {
-  var options, _;
+import {
+  isString, isObject, isArray, each, map, keys, reduce, mapValues, mergeWith, sum,
+} from 'lodash/fp'
 
-  _ = require('lodash');
 
-  options = {
-    db: 'make_id',
-    table: 'api'
-  };
+export function combineResults([ res1, ...rest ]) {
+  return reduce(rest, (result, value) =>
+    mergeWith(result, value, (val1, val2) => val1 + val2),
+    res1
+  )
+}
 
-  module.exports = function(r, field, rq) {
-    this.build_q = function(r, field, rq) {
-      if (!field && !_.isFunction(rq)) {
-        field = rq;
-      }
-      if (_.isString(field)) {
-        return field;
-      }
-      if (!_.isObject(field)) {
-        return null;
-      }
-      if (field.value) {
-        return field.value;
-      }
-      if (_.isArray(field) && _.size(field) > 2) {
-        field = {
-          make_id: field[0],
-          api: field[1],
-          get: field[2]
-        };
-      }
-      if (_.isObject(field.difference) && field.make_id) {
-        rq = this.compare_lr('difference', field.difference, field.make_id);
-      } else if (_.isObject(field.intersection) && field.make_id) {
-        rq = this.compare_lr('intersection', field.intersection, field.make_id);
-      } else if (field.make_id) {
-        rq = r.db(field.make_id);
-      }
-      if (!rq) {
-        console.log('No rq in build_q()');
-        console.log(field);
-        return;
-      }
-      if (field.api) {
-        rq = rq.table(field.api);
-      }
-      if (field.get) {
-        rq = rq.get(field.get);
-      } else if (_.isArray(field.getAll)) {
-        rq = rq.getAll(field.getAll);
-      }
-      if (field.has) {
-        rq = rq.hasFields(field.has);
-      }
-      if (field["with"]) {
-        rq = rq.withFields(field["with"]);
-      } else if (_.isObject(field.group_by)) {
-        rq = this.group_by_obj(rq, field.group_by);
-      }
-      if (_.isObject(field.must)) {
-        rq = rq.filter(field.must);
-      }
-      if (_.isObject(field.must_not)) {
-        rq = this.must_not(rq, field.must_not);
-      }
-      if (_.isObject(field.should && _.size(field.should))) {
-        console.log(field.should);
-        rq = this.should(rq, field.should);
-      }
-      if (field.empty_fields) {
-        rq = this.empty_fields(rq, field.empty_fields);
-      }
-      if (field.eqJoin && field.eqJoin.table && field.eqJoin.key) {
-        rq = this.eqJoin(rq, field);
-      } else if (field.outerJoin && field.outerJoin.left_key && field.outerJoin.right_key && field.outerJoin.table) {
-        rq = this.outerJoin(rq, field.outerJoin, field.make_id);
-      }
-      if (field.field) {
-        if (field.field.filename) {
-          rq = this.filename(rq);
-          delete field.field.filename;
-        }
-        if (field.field.ext) {
-          rq = this.ext(rq);
-          delete field.field.ext;
-        }
-        if (!_.isEmpty(field.field)) {
-          rq = this.create_field(rq, field.field, field.make_id, field.get);
-        }
-      }
-      if (_.isArray(field.stringify)) {
-        rq = this.stringify(rq, field.stringify);
-      }
-      if (field.get && _.isString(field.pluck)) {
-        rq = this.pluck(rq, field.pluck);
-        delete field.pluck;
-      }
-      if (field.sort) {
-        rq = rq.orderBy(field.sort);
-      }
-      if (_.isObject(field.rename)) {
-        rq = this.rename(rq, field.rename);
-      }
-      if (_.isObject(field.merge_with)) {
-        rq = rq.map(function(item) {
-          return item.merge(field.merge_with);
-        });
-      }
-      if (_.isString(field.index_by)) {
-        rq = this.index_by(rq, field);
-      } else if (_.isString(field.group_by)) {
-        rq = this.group_by(rq, field);
-      } else if (_.isString(field.flatten)) {
-        rq = rq.withFields(field.flatten).concatMap(function(item) {
-          return item(field.flatten);
-        });
-        if (field.without) {
-          rq = rq.difference(field.without);
-        }
-      } else if (field.pluck) {
-        rq = this.pluck(rq, field.pluck);
-      }
-      if (field.map && field.map.add) {
-        rq = this.map_add(rq, field.map.add);
-      }
-      if (field.unique) {
-        rq = rq.distinct();
-      }
-      if (field.return_all) {
-        rq = rq.coerceTo('ARRAY');
-      }
-      if (field.count) {
-        rq = rq.count();
-      } else if (field.merge) {
-        rq = rq.reduce(function(left, right) {
-          return left.merge(right);
-        });
-      }
-      if (field.debug) {
-        console.log(rq.toString());
-      }
-      return rq;
-    };
-    this.left_right = function(field, make_id) {
-      field.left.return_all = field.right.return_all = true;
-      if (!field.left.make_id) {
-        field.left.make_id = make_id;
-      }
-      if (!field.right.make_id) {
-        field.right.make_id = make_id;
-      }
-      return r({
-        l: this.build_q(r, null, field.left),
-        r: this.build_q(r, null, field.right)
-      });
-    };
-    this.compare_lr = function(compare_type, field, make_id) {
-      rq = left_right(field, make_id);
-      if (compare_type === 'difference') {
-        rq = rq["do"](function(v) {
-          return v('l').difference(v('r'));
-        });
-      } else if (compare_type === 'intersection') {
-        rq = rq["do"](function(v) {
-          return v('l').setIntersection(v('r'));
-        });
-      }
-      if (_.isString(field.left.pluck) && _.isString(field.right.pluck) && field.getAll) {
-        rq = r.db(field.left.make_id).table(field.left.api).getAll(r.args(rq));
-      }
-      return rq;
-    };
-    this.should = function(rq, should_info) {
-      var or_statements;
-      or_statements = [];
-      rq = rq.filter(function(item) {
-        _.each(should_info, function(required_value, key) {
-          if (_.isArray(required_value)) {
-            return _.each(required_value, function(req_val) {
-              return or_statements.push(item(key).eq(req_val));
-            });
-          } else {
-            return or_statements.push(item(key).eq(required_value));
-          }
-        });
-        return r.or.apply(this, or_statements);
-      });
-      return rq;
-    };
-    this.must_not = function(rq, not_info) {
-      return rq.filter(function(item) {
-        var not_args;
-        not_args = _.map(not_info, function(value, key) {
-          return item(key).ne(value);
-        });
-        return r.and.apply(this, not_args);
-      });
-    };
-    this.empty_fields = function(rq, fields) {
-      return rq.filter(function(item) {
-        var empty_args;
-        if (_.isString(fields)) {
-          return item.hasFields(fields).not();
-        } else if (_.isArray(fields)) {
-          empty_args = _.map(fields, function(field_id) {
-            return item.hasFields(field_id).not();
-          });
-          return r.and.apply(this, empty_args);
-        }
-      });
-    };
-    this.map_add = function(rq, add) {
-      return rq.map(function(item) {
-        add = _.map(add, function(field) {
-          return item(field);
-        });
-        return r.add.apply(this, add);
-      });
-    };
-    this.pluck = function(rq, pluck_info) {
-      var pluck_arr;
-      if (_.isString(pluck_info)) {
-        pluck_arr = pluck_info.split(".");
-        _.each(pluck_arr, function(field_name) {
-          return rq = rq(field_name);
-        });
-      } else if (_.isArray(pluck_info)) {
-        rq = rq.pluck(pluck_info);
-      }
-      return rq;
-    };
-    this.index_by = function(rq, field) {
-      if (field.pluck) {
-        rq = rq.map(function(item) {
-          return r.branch(item(field.index_by), r.object(item(field.index_by).coerceTo('STRING'), pluck(item, field.pluck)), {});
-        });
-      } else {
-        rq = rq.map(function(item) {
-          return r.branch(item(field.index_by), r.object(item(field.index_by).coerceTo('STRING'), item), {});
-        });
-      }
-      return rq;
-    };
-    this.group_by_obj = function(rq, field) {
-      rq = rq.group(field.field);
-      if (field.count) {
-        rq = rq.count();
-      }
-      return rq = rq.ungroup();
-    };
-    this.group_by = function(rq, field) {
-      var pre_pluck;
-      if (_.isString(field.pluck)) {
-        pre_pluck = [field.pluck, field.group_by];
-      } else if (_.isString(field.flatten)) {
-        pre_pluck = [field.flatten, field.group_by];
-      } else if (_.isArray(field.pluck)) {
-        pre_pluck = _.clone(field.pluck);
-        pre_pluck.push(field.group_by);
-      }
-      if (pre_pluck) {
-        rq = rq.withFields(pre_pluck);
-      }
-      rq = rq.group(field.group_by);
-      if (field.pluck) {
-        rq = this.pluck(rq, field.pluck);
-      } else if (_.isString(field.flatten)) {
-        rq = rq.concatMap(function(item) {
-          return item(field.flatten);
-        });
-      }
-      if (field.map && field.map.add) {
-        rq = map_add(rq, field.map.add);
-        delete field.map.add;
-      }
-      if (field.unique) {
-        rq = rq.distinct();
-        field.unique = false;
-      }
-      return rq.ungroup().map(function(item) {
-        return r.object(item('group'), item('reduction'));
-      });
-    };
-    this.eqJoin = function(rq, field) {
-      if (field.eqJoin.require_match === false) {
-        rq = rq.merge(function(item) {
-          var subq;
-          subq = r.db(field.make_id).table(field.eqJoin.table);
-          if (field.eqJoin.index) {
-            subq = subq.getAll(item(field.eqJoin.key), {
-              index: field.eqJoin.index
-            }).limit(1).nth(0);
-          } else {
-            subq = subq.get(item(field.eqJoin.key))["default"]({});
-          }
-          if (field.eqJoin.pluck) {
-            return subq.pluck(field.eqJoin.pluck);
-          } else {
-            return subq;
-          }
-        });
-      } else {
-        if (field.eqJoin.index) {
-          rq = rq.eqJoin(field.eqJoin.key, r.db(field.make_id).table(field.eqJoin.table), {
-            index: field.eqJoin.index
-          });
-        } else {
-          rq = rq.eqJoin(field.eqJoin.key, r.db(field.make_id).table(field.eqJoin.table));
-        }
-        if (field.eqJoin.zip !== false) {
-          rq = rq.zip();
-        }
-      }
-      return rq;
-    };
-    this.outerJoin = function(rq, f, make_id) {
-      return rq.map(function(l) {
-        if (f.pluck) {
-          return l.merge(r.db(make_id).table(f.table).filter(function(v) {
-            return v(f.right_key).eq(l(f.left_key));
-          }).nth(0).pluck(f.pluck));
-        } else {
-          return l.merge(r.db(make_id).table(f.table).filter(function(v) {
-            return v(f.right_key).eq(l(f.left_key));
-          }).nth(0));
-        }
-      });
-    };
-    this.create_field = function(rq, field_info, make_id, single) {
-      var func;
-      if (single) {
-        func = 'do';
-      } else {
-        func = 'map';
-      }
-      return rq[func](function(item) {
-        _.each(field_info, function(info, field_id) {
-          var combine, entity_ids, new_item, subq;
-          if (info.func === 'default' && info.arg_field) {
-            if (!info["try"]) {
-              info["try"] = field_id;
-            }
-            return item = item.merge(r.object(field_id, this.pluck(item, info["try"])["default"](pluck(item, info.arg_field))));
-          } else if (info.func === 'add' && _.isArray(info.arg)) {
-            combine = r('');
-            _.each(info.arg, function(arg) {
-              if (arg.field) {
-                if (arg.default_field) {
-                  return combine = combine.add(item(arg.field)["default"](item(arg.default_field)));
-                } else {
-                  return combine = combine.add(item(arg.field));
-                }
-              } else if (arg.value) {
-                return combine = combine.add(arg.value);
-              }
-            });
-            return item = item.merge(r.object(field_id, combine));
-          } else if (info.func === 'getAll' && _.isObject(info.arg)) {
-            if (info.arg.entities_field) {
-              entity_ids = item(info.arg.entities_field);
-            }
-            if (info.arg.entities_field_pluck) {
-              entity_ids = pluck(entity_ids, info.arg.entities_field_pluck);
-            }
-            subq = r.db(make_id).table(item(info.arg.api_field)).getAll(r.args(entity_ids));
-            if (info.arg.pluck) {
-              subq = this.pluck(subq, info.arg.pluck);
-            }
-            if (field_id === '_data') {
-              new_item = subq;
-            } else {
-              new_item = item.merge(r.object(field_id, subq.coerceTo('ARRAY')));
-            }
-            return item = r.branch(item, new_item, item);
-          }
-        });
-        return item;
-      });
-    };
-    this.stringify = function(rq, field_arr) {
-      return rq.map(function(row) {
-        var merge_obj;
-        merge_obj = {};
-        _.each(field_arr, function(field_id) {
-          return merge_obj[field_id] = r.branch(row(field_id)["default"](false), row(field_id).reduce(function(l, right) {
-            return l.add(', ').add(right);
-          }), null);
-        });
-        return row.merge(merge_obj);
-      });
-    };
-    this.rename = function(rq, rename_info) {
-      var without;
-      without = _.keys(rename_info);
-      return rq.map(function(item) {
-        var merge_obj;
-        merge_obj = {};
-        _.each(rename_info, function(new_key, old_key) {
-          return merge_obj[new_key] = item(old_key)["default"](null);
-        });
-        return item.merge(merge_obj).without(without);
-      });
-    };
-    this.filename = function(rq, primary_key) {
-      if (primary_key == null) {
-        primary_key = 'path';
-      }
-      return rq.merge(function(item) {
-        return item(primary_key).match('^(.*/)?(?:$|(.+?)(?:(\\.[^.]*$)|$))')["default"]({
-          groups: [
-            {
-              str: false
-            }, {
-              str: false
-            }, {
-              str: false
-            }
-          ]
-        })["do"](function(result) {
-          return {
-            filename: r.branch(result('groups').nth(1), result('groups').nth(1)('str'), false),
-            ext: r.branch(result('groups').nth(2), result('groups').nth(2)('str'), false)
-          };
-        });
-      });
-    };
-    this.ext = function(rq, primary_key) {
-      if (primary_key == null) {
-        primary_key = 'path';
-      }
-      return rq.merge({
-        ext: r.row('path').match('\\.[^.]*$|$')('str')
-      });
-    };
-    return this.build_q(r, field, rq);
-  };
+export function updateChanges({ r, rq, data }) {
+  return changes({ data, r, rq: rq.update(data, { returnChanges: true }) })
+}
 
-}).call(this);
+// Return changes of insert with update on conflict.
+export function insertUpdateChanges({ r, rq, data }) {
+  return r(data).do((_data) => changes({
+    data: _data,
+    r,
+    rq: rq.insert(_data, { conflict: 'update', returnChanges: true }),
+  }))
+}
+
+// Generate random keys.
+export function randomIds({ r, prefix, maxLength = 11 }) {
+  // const others = '_-~!*$(),'
+  return r('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-')
+  .split('').do(row =>
+    r.range(4, maxLength).map(length =>
+      // Some bug requires the final empty string when no prefix.
+      prefix && r.add(prefix, r.args(row.sample(length))) || r.add(r.args(row.sample(length)), '')
+    )
+    .coerceTo('array')
+    // Add another one at the end.
+    .append(prefix ? r.add(prefix, r.uuid()) : r.uuid())
+  )
+}
+
+export function uniqueId(r, table, prefix) {
+  return randomIds({ r, prefix })
+  .do(ids =>
+    ids.difference(table.getAll(r.args(ids))('id').coerceTo('array'))(0)
+  )
+}
+
+// Allow strings with dots to represent obj traversal.
+// 'parent.child' will return 'thing' {parent: { child: 'thing' }}
+export function getDotField({ rq, str }) {
+  let rQuery = rq
+  const fieldArray = str.split('.')
+  each(fieldArray, (fieldName) => {
+    rQuery = rQuery.getField(fieldName)
+  })
+  return rQuery
+}
+
+export function maxval(minval) {
+  return `${minval}\uffff`
+}
+
+export function mergeResults({ r, qArray }) {
+  var rqArray
+  rqArray = map(qArray, (field) => {
+    return this.expand(field)
+  })
+  return r(rqArray).reduce((left, right) => {
+    return r.branch(right, left.merge(right), left)
+  }).coerceTo('array').map((row) => {
+    return row.nth(1)
+  })
+}
+
+export function filterOutThings({ r, rq, rejectInfo }) {
+  return rq.filter((item) => {
+    const notArgs = map(rejectInfo, (value, key) =>
+      item(key).default(null).ne(value)
+    )
+    return r.and(r.args(notArgs))
+  })
+}
+
+export function indexBy(rq, fieldId) {
+  return rq.map((row) => [ row(fieldId), row ])
+  .coerceTo('object')
+}
+
+export function group({r, rq, groupInfo, valueId}) {
+  return rq.group(groupInfo).ungroup().map((item) => {
+    if (valueId) {
+      return r.object(item('group'), r.object(valueId, item('reduction')))
+    }
+    return r.object(item('group'), item('reduction'))
+  }).reduce((left, right) => {
+    return left.merge(right)
+  })
+}
+
+export function groupObj({rq, groupOn, groupValue}) {
+  // @TODO something with count?
+  return this.group(rq, groupOn, groupValue)
+}
+
+export function rename({rq, renameInfo}) {
+  var oldKeys
+  oldKeys = keys(renameInfo)
+  return rq.map((item) => {
+    const mergeObj = {}
+    each(renameInfo, (newKey, oldKey) => {
+      mergeObj[newKey] = item(oldKey).default(null)
+    })
+    return item.merge(mergeObj).without(oldKeys)
+  })
+}
+
+export function stripSlash({r, str}) {
+  return str.match('^/(.*)').do((res) => {
+    return r.branch(res, res('groups').nth(0)('str'), str)
+  })
+}
+
+export function dirNameExt({r, str}) {
+  return str.match('^(.*/)?(?:$|(.+?)(?:(\\.[^.]*$)|$))')('groups').map((part) => {
+    return r.branch(part, part('str'), part)
+  }).do((parts) => {
+    return {
+      dir: r.branch(parts.nth(0), parts.nth(0).match('(.*)/')('groups').nth(0)('str'), null),
+      filename: parts.nth(1),
+      ext: parts.nth(2),
+    }
+  })
+}
+
+export function dirs({r, dir}) {
+  return r.branch(dir, dir.split('/')["do"](function(row) {
+    return row.map(function(d) {
+      return r.object(r('dir').add(row.indexesOf(d).nth(0).coerceTo('string')), d)
+    })
+  }).reduce(function(lt, rt) {
+    return lt.merge(rt)
+  }), {})
+}
+
+export function matchReplace(sourceStr, regexStr, replaceStr) {
+  return sourceStr["do"](function(str) {
+    return str.match(regexStr)["default"]({
+      end: 0
+    })["do"](function(res) {
+      return r.branch(res('end').gt(0), str.split('', res('end'))["do"](function(parts) {
+        return parts.slice(0, res('start')).append(replaceStr).union(parts.slice(res('end'))).reduce(function(l, r) {
+          return l.add(r)
+        })
+      }), str)
+    })
+  })
+}
+
+export function replaceAll(sourceStr, find, replace) {
+  return sourceStr.split(find).reduce(function(left, right) {
+    return left.add(replace).add(right)
+  })
+}
+export const transforms = {}
+
+export const actions = {
+  http: ['url'],
+  replaceField: ['path', 'transform'],
+  get: ['path'],
+  mergeResults: ['flowers'], // Array of flower objects.
+  keyBy: ['path'],
+  rename: [],
+  pick: ['fields'],
+  orderBy: [],
+  groupBy: [],
+  omit: [],
+  filter: [],
+}
+
+export const stringArg = condId(
+  [startsWith('http'), createObj('http')])
+export const isActionArray = overEvery([
+  flow(get('length'), isGt(1)),
+  flow(head, hasOf(actions)),
+])
+export const arrayArg = condId(
+  [isActionArray, actionArrArg],
+)
+export const argsToField = cond([
+  [isString, stringArg],
+  [isArray, arrayArg],
+])
+export function argsToField(args) {
+  let field = false
+  // A simple string.
+  // The most basic database query is an array.
+  } else if (isArray(args) && args.length > 1) {
+    // Order of elements in array must match these vars.
+    const [db, table, get, pluck] = args
+    field = {db, table, get}
+    if (isString(pluck)) {
+      field.getField = pluck
+    } else if (isArray(pluck)) {
+      field.pluck = pluck
+    }
+  }
+  return field
+}
+
+function expandField(args) {
+  const field = argsToField(args)
+  const {
+    db, table, get, http, pluck, hasFields, orderBy, without, limit,
+    getField, filter, filterOut, group, group, mergeResults, rename,
+    } = field
+
+  let rq
+
+  if (db) {
+    if (!table) {
+      bConsole.error('no table for db', db)
+      return false
+    }
+    rq = r.db(db).table(table)
+    if (get) {
+      rq = rq.get(get)
+    }
+  } else if (http) {
+    rq = r.http(http)
+  } else if (mergeResults) {
+    rq = this.mergeResults(mergeResults)
+  } else {
+    bConsole.error('must send db or http', field)
+    return false
+  }
+
+  if (orderBy) {
+    rq = rq.orderBy(orderBy)
+  }
+
+  if (hasFields) {
+    rq = rq.hasFields(hasFields)
+  }
+
+  if (isObject(filter)) {
+    rq = rq.filter(filter)
+  }
+
+  if (isObject(filterOut)) {
+    rq = this.filterOut(rq, filterOut)
+  }
+
+  if (limit) {
+    rq = rq.limit(limit)
+  }
+
+  if (isString(getField)) {
+    rq = getDotField(rq, getField)
+  }
+
+  if (rename) {
+    rq = rename({rq, rename})
+  }
+
+  if (pluck) {
+    rq = rq.pluck(pluck)
+  }
+
+  if (without) {
+    rq = rq.without(without)
+  }
+
+  if (isString(indexBy)) {
+    rq = this.indexBy(rq, indexBy)
+  } else if (group) {
+    rq = isString(group) ? this.group(rq, group) : this.groupObj(rq, group)
+  }
+
+  return rq
+}
+
+// Must send an object.
+export const expand = mapValues(expandField)
+
+export default expand
