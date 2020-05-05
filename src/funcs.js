@@ -1,3 +1,9 @@
-export * from 'lodash/fp'
-export * from 'understory'
-export * from 'prairie'
+const _ = require('lodash/fp')
+const understory = require('understory')
+const prairie = require('prairie')
+
+module.exports = {
+  ..._,
+  ...understory,
+  ...prairie,
+}

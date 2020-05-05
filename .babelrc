@@ -1,4 +1,0 @@
-{
-  "plugins": ["add-module-exports", "lodash"],
-  "presets": ["env", "stage-3"]
-}
