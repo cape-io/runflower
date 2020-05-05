@@ -25,10 +25,15 @@ const createString2 = evaluate([
   ['over', [['constant', '/cape-io/'], ['get', 'url.subdomain'], ['get', 'pathname']]],
   ['join', ''],
 ])
-
+const createString3 = evaluate([
+  { over: [{ constant: '/cape-io/' }, { get: 'url.subdomain' }, { get: 'pathname' }] },
+  { join: '' },
+])
 const info = { url: { subdomain: 'dev' }, pathname: '/index.html' }
 
 console.log(createString1(info) === createString2(info)) // => true
+console.log(createString1(info) === createString3(info)) // => true
+
 ```
 
 With YAML you can write things like:

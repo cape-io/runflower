@@ -100,4 +100,11 @@ describe('evaluate', () => {
   test('get & nth', () => {
     expect(evaluate(['data', 1, 'id'])(sample)).toBe('b')
   })
+  test('readme', () => {
+    const createString3 = evaluate([
+      { over: [{ constant: '/cape-io/' }, { get: 'url.subdomain' }, { get: 'pathname' }] },
+      { join: '' },
+    ])
+    expect(createString3(info)).toBe('/cape-io/dev/index.html')
+  })
 })

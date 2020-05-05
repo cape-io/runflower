@@ -6,36 +6,49 @@ const funcIds = _.keys(funcOptions)
 
 const objFuncId = _.flow(_.keys, _.first)
 const objFunc = _.flow(objFuncId, getFunc)
+const arrFunc = _.flow(_.nth(0), getFunc)
 
 const isObjDirective = _.overEvery([
   _.isPlainObject,
   _.flow(_.size, _.eq(1)),
   _.flow(objFunc, _.isFunction),
 ])
-
+const isArrDirective = _.overEvery([
+  _.isArray,
+  _.flow(_.size, _.eq(2)),
+  _.flow(arrFunc, _.isFunction),
+])
 function directiveToFunc(directive) {
-  function expandArg(arg) {
-    if (isObjDirective(arg)) return directiveToFunc(arg)
-    return arg
-  }
-  if (_.isArray(directive)) {
-    const [funcId, arg] = directive
-    if (funcId === 'over') {
-      return getFunc(funcId)(_.map(directiveToFunc, arg))
-    }
-    return getFunc(funcId)(arg)
-  }
-  if (isObjDirective(directive)) {
-    const funcId = _.first(_.keys(directive))
-    const arg = directive[funcId]
-    const func = getFunc(funcId)
-    if (_.isArray(arg)) return func(..._.map(expandArg, arg))
-    if (_.isPlainObject(arg)) return func(expandArg(arg))
-    return func(arg)
-  }
   if (_.isString(directive)) return _.get(directive)
   if (_.isNumber(directive)) return _.nth(directive)
-  return _.identity
+
+  let funcId = null
+  let args = null
+  let func = null
+
+  if (_.isArray(directive)) {
+    funcId = _.nth(0, directive)
+    args = _.nth(1, directive)
+    func = getFunc(funcId)
+  }
+  if (isObjDirective(directive)) {
+    funcId = _.first(_.keys(directive))
+    args = directive[funcId]
+    func = getFunc(funcId)
+  }
+  if (!_.isFunction(func)) return _.identity
+
+  function expandArg(arg) {
+    if (isObjDirective(arg)) return directiveToFunc(arg)
+    if (isArrDirective(arg)) return directiveToFunc(arg)
+    return arg
+  }
+  if (funcId === 'over') {
+    return getFunc(funcId)(_.map(expandArg, args))
+  }
+  if (_.isArray(args)) return func(..._.map(expandArg, args))
+  if (_.isPlainObject(args)) return func(expandArg(args))
+  return func(args)
 }
 
 function evaluate(directives) {
