@@ -1,6 +1,6 @@
 {
   "name": "runflower",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "description": "Write basic data handling code as arrays of strings.",
   "main": "src/index.js",
   "scripts": {
